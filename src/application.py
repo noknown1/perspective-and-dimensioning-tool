@@ -221,13 +221,14 @@ def select_edge(event):
                     canvas_elements.append(window_main.image_canvas.create_line(circle_points[0][0], circle_points[0][1], circle_points[1][0], circle_points[1][1], width=3, fill=WHITE))
 
                     # append the edge to the set of edges
-                    edges.append([[circle_points[0][0], circle_points[0][1]], [circle_points[1][0], circle_points[1][1]]])
+                    edge = [[circle_points[0][0], circle_points[0][1]], [circle_points[1][0], circle_points[1][1]]]
+                    edges.append(edge)
 
                     # append the canvas elements to the list of all elements
                     canvas_job_elements.append(canvas_elements)
 
                     # update status, display coordinates for all points selected
-                    update_status("Edge created")
+                    update_status("Edge created: " + str(edge))
 
                     # reset the clicked points list, this current job is done
                     clicked_points = []
@@ -368,6 +369,45 @@ def export_images():
         num += 1
 
 def export_composite():
+    global all_click_points, processed_images, edges
+
+    # compute the width and height of the stitched image
+    # tl, tr, br, bl
+
+    # this list holds what side of each image should be glued together (each side is defined by two corner points)
+    sides_to_glue = []
+
+    # iterate through each selection (set of four points)
+    i = 1
+    for selection in all_click_points:
+
+        face_sides = []
+
+        # iterate through each edge (set of two points)
+        for edge in edges:
+
+            side = []
+
+            # check if the top left point is part of the edge
+            if selection[0] in edge:
+                side.append('tl')
+            # check if the top left point is part of the edge
+            if selection[1] in edge:
+                side.append('tr')
+            # check if the top left point is part of the edge
+            if selection[2] in edge:
+                side.append('br')
+            # check if the top left point is part of the edge
+            if selection[3] in edge:
+                side.append('bl')
+
+            face_sides.append(side)
+
+        # add the side information to the list of all sides that must be glued
+        sides_to_glue.append(face_sides)
+        print("Side " + str(i) + " will be glued at: " + str(face_sides))
+        i += 1
+
     return
 
 # GUI CREATION #
