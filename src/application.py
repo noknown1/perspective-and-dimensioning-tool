@@ -369,44 +369,80 @@ def export_images():
         num += 1
 
 def export_composite():
-    global all_click_points, processed_images, edges
+    global all_circle_points, processed_images, edges
+
+    update_status("Building composite...")
 
     # compute the width and height of the stitched image
     # tl, tr, br, bl
 
-    # this list holds what side of each image should be glued together (each side is defined by two corner points)
-    sides_to_glue = []
+    # get number of faces (this is equal to the number of processed images we have)
+    num_faces = all_click_points.__len__()
+
+    sides_to_glue = []      # this list holds what side of each image should be glued together (each side is defined by two corner points
+    face_connections = []   # what faces those sides will be glued to (list of faces)
+    face_edges_all = []
 
     # iterate through each selection (set of four points)
     i = 1
-    for selection in all_click_points:
+    for selection in all_circle_points:
 
+        # create lists to hold what relative points are part of the edge (bottom left, top right, etc), and the actual
+        # coordinate value of the edge [x, y]
         face_sides = []
+        face_edges = []
 
         # iterate through each edge (set of two points)
         for edge in edges:
 
             side = []
+            face_edge = []
+            found = False
 
             # check if the top left point is part of the edge
             if selection[0] in edge:
+                found = True
                 side.append('tl')
-            # check if the top left point is part of the edge
+            # check if the top right point is part of the edge
             if selection[1] in edge:
+                found = True
                 side.append('tr')
-            # check if the top left point is part of the edge
+            # check if the bottom right point is part of the edge
             if selection[2] in edge:
+                found = True
                 side.append('br')
-            # check if the top left point is part of the edge
+            # check if the bottom left point is part of the edge
             if selection[3] in edge:
+                found = True
                 side.append('bl')
 
-            face_sides.append(side)
+            # if an edge was found, append it
+            if found:
+                face_edge.append(edge)
+
+            if side.__len__() == 2:
+                face_sides.append(side)
+                face_edges.append(face_edge)
 
         # add the side information to the list of all sides that must be glued
         sides_to_glue.append(face_sides)
-        print("Side " + str(i) + " will be glued at: " + str(face_sides))
+        face_edges_all.append(face_edges)
+
         i += 1
+
+    # for each face, find what other faces they are connected to
+    # how: for each face i iterate through every other face j, then iterate through these faces edges k (for face i) and
+    # h (for face j). if an edge k in i is equal to an edge h in j, we know that face i will need to be glued to face j
+    for i in range(num_faces):
+        face_list = []
+        for j in range(num_faces):
+            for k in range(face_edges_all[i].__len__()):
+                for h in range(face_edges_all[j].__len__()):
+                    if face_edges_all[i][k] == face_edges_all[j][h] and j != i:
+                        face_list.append(j)
+        face_connections.append(face_list)
+
+    update_status("Composite image built.")
 
     return
 
