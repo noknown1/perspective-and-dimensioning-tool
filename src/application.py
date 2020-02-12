@@ -221,7 +221,7 @@ def select_edge(event):
                     canvas_elements.append(window_main.image_canvas.create_line(circle_points[0][0], circle_points[0][1], circle_points[1][0], circle_points[1][1], width=3, fill=WHITE))
 
                     # append the edge to the set of edges
-                    edges.append([circle_points[0][0], circle_points[0][1]], [circle_points[1][0], circle_points[1][1]])
+                    edges.append([[circle_points[0][0], circle_points[0][1]], [circle_points[1][0], circle_points[1][1]]])
 
                     # append the canvas elements to the list of all elements
                     canvas_job_elements.append(canvas_elements)
