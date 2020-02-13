@@ -66,9 +66,8 @@ def load_image():
     show_image(window_main.source_image)
 
 # save_image: Allows user to save the output image to a path
-def save_image(img, i):
-    default_file_name = "Selection_" + NAMES[i]
-    window_main.output_image_path = asksaveasfilename(title="Save Output Image", initialfile=default_file_name, defaultextension=".jpg")
+def save_image(img, def_name):
+    window_main.output_image_path = asksaveasfilename(title="Save Output Image", initialfile=def_name, defaultextension=".jpg")
     cv2.imwrite(window_main.output_image_path, img)
     update_status("Saved output image " + window_main.output_image_path)
 
@@ -100,7 +99,6 @@ def process_image(points):
     heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
     maxHeight = max(int(heightA), int(heightB))
 
-    # create new image array using new dimensions
     new_image = np.array([
         [0, 0],
         [maxWidth - 1, 0],
@@ -179,7 +177,6 @@ def select_face(event):
 
             # unbind left mouse click from the canvas
             window_main.image_canvas.unbind("<Button-1>")
-
             selected_face = i
 
 def select_edges():
@@ -365,7 +362,8 @@ def redraw_face():
 def export_images():
     num = 0
     for i in processed_images:
-        save_image(i, num)
+        def_name = "Selection_" + NAMES[num]
+        save_image(i, def_name)
         num += 1
 
 def export_composite():
@@ -442,9 +440,130 @@ def export_composite():
                         face_list.append(j)
         face_connections.append(face_list)
 
-    update_status("Composite image built.")
+    # compute width and height of composite image, start with face A
+    width = processed_images[0].shape[1]
+    height = processed_images[0].shape[0]
 
-    return
+    TOP = ['tl', 'tr']
+    RIGHT = ['tr', 'br']
+    LEFT = ['tl', 'bl']
+    BOTTOM = ['br', 'bl']
+
+    # for i in range(1, num_faces):
+    #     w = processed_images[i].shape[0]
+    #     h = processed_images[i].shape[1]
+    #
+    #     for j in range(sides_to_glue[i].__len__()):
+    #         if sides_to_glue[i][j] == TOP:
+    #             height += h
+
+    # this list holds the faces that have already been counted to compute the total width and height, its needed to not count images twice
+    counted_faces = []
+
+    # this list holds where each image should be written in the larger image (the top left corner coordinate)
+    image_write_start = []
+    for i in range(num_faces):
+        image_write_start.append([0,0])
+
+    # this list holds booleans that say if an image needs to be rotated (will be true if image is glued to the left or right of a face)
+    need_to_rotate = []
+    for i in range(num_faces):
+        need_to_rotate.append(False)
+
+    for i in range(num_faces):
+
+        # get the current face's width and height
+        current_face_width = processed_images[i].shape[1]
+        current_face_height = processed_images[i].shape[0]
+
+        print("Face " + str(i) + ": " + str(current_face_width) + ", " + str(current_face_height))
+        for j in range(face_connections[i].__len__()):
+
+            # find the connected face
+            connected_face = face_connections[i][j]
+
+            # if the connected face has already been counted, don't do the following computations
+            if connected_face in counted_faces:
+                break
+
+            # boolean controls if this side was counted for width or height of the compleate image
+            counted = False
+
+            # image_write_start[i][0] = current_face_width
+            # image_write_start[i][1] = current_face_height
+
+            # get the connected face's width and height
+            connected_face_width = processed_images[connected_face].shape[1]
+            connected_face_height = processed_images[connected_face].shape[0]
+
+            # depending on what side is connected, add to the width of height
+            if sides_to_glue[i][j] == TOP:
+                print("face " + str(i) + " will be glued to the bottom of " + str(connected_face))
+                height += connected_face_height
+                counted = True
+
+                # top left corner should share x of parent image x, and y of parent image y - this images height
+                image_write_start[connected_face][0] = image_write_start[i][0]
+                image_write_start[connected_face][1] = image_write_start[i][1] - current_face_height
+
+            if sides_to_glue[i][j] == BOTTOM:
+                print("face " + str(i) + " will be glued to the top of " + str(connected_face))
+                height += connected_face_height
+                counted = True
+
+                # top left corner should share x of parent image x, and y of parent image y + this images height
+                image_write_start[connected_face][0] = image_write_start[i][0]
+                image_write_start[connected_face][1] = image_write_start[i][1] + current_face_height
+
+
+            if sides_to_glue[i][j] == LEFT:
+                print("face " + str(i) + " will be glued to the right of " + str(connected_face))
+                width += connected_face_height
+                counted = True
+                need_to_rotate[connected_face] = True
+
+                # top left corner should share x of parent image x - this images width, and y of parent image y
+                image_write_start[connected_face][0] = image_write_start[i][0] - current_face_width
+                image_write_start[connected_face][1] = image_write_start[i][1]
+
+            if sides_to_glue[i][j] == RIGHT:
+                print("face " + str(i) + " will be glued to the left of " + str(connected_face))
+                width += connected_face_height
+                counted = True
+                need_to_rotate[connected_face] = True
+
+                # top left corner should share x of parent image x + this images width, and y of parent image y
+                image_write_start[connected_face][0] = image_write_start[i][0] + current_face_width
+                image_write_start[connected_face][1] = image_write_start[i][1]
+
+            if counted:
+                counted_faces.append(i)
+    print("Total image: " + str(width) + ", " + str(height))
+
+    # generate a blank image with the total width and height
+    composite_image = np.zeros((height, width, 3), dtype="uint8")
+
+    # iterate through all images
+    for img in range(num_faces):
+
+        # compute where the next image write should start (this will be where the top left corner is)
+        x_in_composite = image_write_start[img][0]
+        y_in_composite = image_write_start[img][1]
+
+        if need_to_rotate[img]:
+            for i in range(processed_images[img].shape[0]):
+                for j in range(processed_images[img].shape[1]):
+                    v = processed_images[img][i][j]
+                    composite_image[y_in_composite + j][x_in_composite + i] = v
+        else:
+            for i in range(processed_images[img].shape[0]):
+                for j in range(processed_images[img].shape[1]):
+                    v = processed_images[img][i][j]
+                    composite_image[y_in_composite + i][x_in_composite + j] = v
+
+    # Save the image
+    save_image(composite_image, "Composite")
+    update_status("Composite image built.")
 
 # GUI CREATION #
 # Create menu
